@@ -5,13 +5,28 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "jobappfrontend",
+    "scheme": "jobassigning",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": false,
+
+    "extra": {
+  "firebase": {
+    "apiKey": "AIzaSyA8aVMD3C9AqF8a9lcK8_LeNCPk3fBXb6o",
+    "authDomain": "jobassigning.firebaseapp.com",
+    "projectId": "jobassigning",
+    "storageBucket": "jobassigning.firebasestorage.app",
+    "messagingSenderId": "732994003548",
+    "appId": "1:732994003548:web:jobassigning"
+  }
+},
+
+
     "ios": {
       "supportsTablet": true
     },
+
     "android": {
+      "package": "com.anonymous.jobassigningapp",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -19,14 +34,24 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.jobappfrontend"
+      "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "config": {
+        "firebase": {
+          "apiKey": "AIzaSyA8aVMD3C9AqF8a9lcK8_LeNCPk3fBXb6o",
+          "projectId": "jobassigning",
+          "storageBucket": "jobassigning.firebasestorage.app",
+          "messagingSenderId": "732994003548",
+          "appId": "1:732994003548:web:jobassigning"
+        }
+      }
     },
+
     "plugins": [
       "expo-router",
       [
@@ -43,6 +68,7 @@
       ],
       "expo-font"
     ],
+
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true

@@ -1,20 +1,25 @@
-// app/auth/SignUp.tsx
 import { FontAwesome } from "@expo/vector-icons";
+import Constants from "expo-constants";
+import { FirebaseRecaptchaVerifierModal } from "expo-firebase-recaptcha";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-aware-scroll-view";
+import { useAuth } from "../../context/AuthContext";
 import { sendOTP } from "../../services/auth.service";
 
 export default function SignUp() {
   const router = useRouter();
+  const { setConfirmationResult } = useAuth();
+  const recaptchaVerifier = useRef<FirebaseRecaptchaVerifierModal>(null);
+
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -28,32 +33,26 @@ export default function SignUp() {
 
     setLoading(true);
     try {
-      // Format phone with country code
       const fullPhone = `+91${digits}`;
 
-      // Send OTP via Firebase
-      const result = await sendOTP(fullPhone);
+      // 🔥 Send OTP with reCAPTCHA
+      const confirmation = await sendOTP(
+        fullPhone,
+        recaptchaVerifier.current
+      );
 
-      if (result.success) {
-        // Navigate to OTP screen
-        router.push({
-          pathname: "/auth/otp",
-          params: {
-            phone: fullPhone,
-            mode: "signup",
-            mockMode: result.mockMode ? "true" : "false",
-          },
-        } as any);
+      // Store confirmation result safely in context
+      setConfirmationResult(confirmation);
 
-        // Store confirmation result globally for OTP verification
-        if (result.confirmationResult) {
-          (global as any).confirmationResult = result.confirmationResult;
-        }
-      } else {
-        Alert.alert("Error", result.error || "Failed to send OTP");
-      }
+      router.push({
+        pathname: "/auth/otp",
+        params: {
+          phone: fullPhone,
+          mode: "signup",
+        },
+      });
     } catch (error: any) {
-      Alert.alert("Error", error.message || "Something went wrong");
+      Alert.alert("Error", error.message || "Failed to send OTP");
     } finally {
       setLoading(false);
     }
@@ -68,10 +67,18 @@ export default function SignUp() {
           paddingHorizontal: 24,
           paddingVertical: 15,
         }}
-        enableOnAndroid={true}
+        enableOnAndroid
         extraScrollHeight={30}
         keyboardOpeningTime={0}
       >
+        {/* 🔐 reCAPTCHA modal (MANDATORY for Expo) */}
+        <FirebaseRecaptchaVerifierModal
+          ref={recaptchaVerifier}
+          firebaseConfig={Constants.expoConfig?.extra?.firebase}
+          attemptInvisibleVerification={false}
+        />
+
+
         <View>
           {/* Icon + title */}
           <View className="items-center mb-6">
@@ -99,9 +106,10 @@ export default function SignUp() {
             />
           </View>
 
-          {/* Primary CTA button */}
+          {/* CTA */}
           <TouchableOpacity
-            className={`p-4 rounded-xl mt-4 ${loading ? "bg-gray-400" : "bg-accent"}`}
+            className={`p-4 rounded-xl mt-4 ${loading ? "bg-gray-400" : "bg-accent"
+              }`}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -114,7 +122,7 @@ export default function SignUp() {
             )}
           </TouchableOpacity>
 
-          {/* Link to login */}
+          {/* Login link */}
           <TouchableOpacity
             onPress={() => router.push("/auth/Login" as any)}
             className="mt-4"

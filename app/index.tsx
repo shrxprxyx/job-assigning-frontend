@@ -5,26 +5,26 @@ import { useAuth } from "../context/AuthContext";
 
 export default function Index() {
   const router = useRouter();
-  const { user, isLoading, isAuthenticated } = useAuth();
+  const { user } = useAuth();
 
   useEffect(() => {
-    if (isLoading) return;
-
-    if (isAuthenticated && user) {
-      if (user.isProfileComplete) {
-        // Go to main app
-        router.replace("/jobs" as any);
-      } else {
-        // Complete profile first
-        router.replace("/auth/user-details" as any);
-      }
-    } else {
-      // Not authenticated, go to signup
+    // No user → go to signup
+    if (!user) {
       router.replace("/auth/SignUp" as any);
+      return;
     }
-  }, [isLoading, isAuthenticated, user]);
 
-  // Show loading while checking auth
+    // User exists but profile incomplete
+    if (!user.isProfileComplete) {
+      router.replace("/auth/user-details" as any);
+      return;
+    }
+
+    // User exists & profile complete
+    router.replace("/jobs" as any);
+  }, [user]);
+
+  // Simple splash/loading screen
   return (
     <View className="flex-1 bg-bgmain items-center justify-center">
       <ActivityIndicator size="large" color="#FF7F50" />

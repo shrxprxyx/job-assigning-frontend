@@ -1,46 +1,38 @@
 import { FontAwesome } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
-  Image,
+  Keyboard,
+  ScrollView,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
-import { SkillsInput } from "./SkillsInput";
-import { completeProfile } from "../../services/auth.service";
+
 import { useAuth } from "../../context/AuthContext";
+import { completeProfile } from "../../services/auth.service";
+import { AgePicker } from "./AgeField";
+import { SkillsInput } from "./SkillsInput";
 
 export default function UserDetails() {
   const router = useRouter();
   const { updateUser } = useAuth();
+
   const [name, setName] = useState("");
-  const [age, setAge] = useState("");
+  const [age, setAge] = useState<number>(18);
+  const [gender, setGender] = useState<"male" | "female" | "other" | null>(null);
   const [skills, setSkills] = useState<string[]>([]);
-  const [aadhaarImage, setAadhaarImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const handleAadhaarUpload = async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setAadhaarImage(result.assets[0].uri);
-    }
-  };
+  const [showGenderDropdown, setShowGenderDropdown] = useState(false);
 
   const handleSubmit = async () => {
-    if (!name || skills.length === 0) {
+    if (!name.trim() || !gender || skills.length === 0) {
       Alert.alert(
         "Missing info",
-        "Please fill your name and add at least one skill."
+        "Please enter name, gender, and at least one skill."
       );
       return;
     }
@@ -50,54 +42,48 @@ export default function UserDetails() {
 
       const response = await completeProfile({
         name,
-        age: age ? Number(age) : undefined,
+        age,
+        gender,
         skills,
-        aadhaarImage: aadhaarImage || undefined,
       });
 
       if (response.success) {
-        // Update local user state
         updateUser({
           name,
           skills,
           isProfileComplete: true,
         });
-
-        Alert.alert("Saved", "Your profile has been saved!", [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace("/jobs" as never);
-            },
-          },
-        ]);
+        router.replace("/jobs" as never);
       } else {
-        Alert.alert(
-          "Error",
-          (response as any).message || "Failed to save profile. Please try again."
-        );
+        Alert.alert("Error", "Failed to save profile.");
       }
-    } catch (error) {
-      console.error(error);
-      Alert.alert(
-        "Error",
-        "Something went wrong while saving your details."
-      );
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Error", "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <View className="flex-1 px-6 justify-center bg-bgmain">
+    <ScrollView
+      style={{ flex: 1, backgroundColor: "#FFF3E8" }}
+      contentContainerStyle={{
+        paddingHorizontal: 24,
+        paddingTop: 80,
+        paddingBottom: 200,
+      }}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
+      {/* Header */}
       <View className="items-center mb-6">
-        <FontAwesome name="paper-plane" size={48} color="textmain" />
-        <Text className="text-3xl mt-8 font-bold text-textmain">
-          User Details
-        </Text>
+        <FontAwesome name="paper-plane" size={48} />
+        <Text className="text-3xl mt-6 font-bold">User Details</Text>
       </View>
 
-      <Text className="text-textmuted font-medium">Full Name</Text>
+      {/* Name */}
+      <Text className="font-medium">Full Name</Text>
       <TextInput
         className="bg-card p-3 rounded-xl mt-1 mb-3"
         placeholder="Enter your full name"
@@ -105,45 +91,72 @@ export default function UserDetails() {
         onChangeText={setName}
       />
 
-      <Text className="text-textmuted font-medium">Age</Text>
-      <TextInput
-        className="bg-card p-3 rounded-xl mt-1 mb-3"
-        placeholder="Enter your age"
-        keyboardType="numeric"
-        value={age}
-        onChangeText={setAge}
-      />
+      {/* Gender Dropdown */}
+      <Text className="font-medium mb-2">Gender</Text>
 
-      <SkillsInput value={skills} onChange={setSkills} />
-
-      <Text className="text-textmuted font-medium mt-2">Aadhaar Card</Text>
       <TouchableOpacity
-        onPress={handleAadhaarUpload}
-        className="bg-card rounded-xl p-4 mt-2 mb-3"
+        onPress={() => {
+          Keyboard.dismiss();
+          setShowGenderDropdown((prev) => !prev);
+        }}
+        className="bg-card p-3 rounded-xl mb-2"
+        activeOpacity={0.8}
       >
-        {aadhaarImage ? (
-          <Image
-            source={{ uri: aadhaarImage }}
-            className="w-full h-40 rounded-xl"
-            resizeMode="cover"
-          />
-        ) : (
-          <View className="items-center bg-card justify-center py-8">
-            <FontAwesome name="upload" size={28} color="textmain" />
-            <Text className="text-textmuted mt-2">Upload Aadhaar</Text>
-          </View>
-        )}
+        <Text className="text-gray-700">
+          {gender
+            ? gender.charAt(0).toUpperCase() + gender.slice(1)
+            : "Select gender"}
+        </Text>
       </TouchableOpacity>
 
+      {showGenderDropdown && (
+        <View className="bg-white rounded-xl shadow-md mb-4 overflow-hidden">
+          {(["male", "female", "other"] as const).map((g) => (
+            <TouchableOpacity
+              key={g}
+              onPress={() => {
+                setGender(g);
+                setShowGenderDropdown(false);
+              }}
+              className="p-4 border-b border-gray-200"
+            >
+              <Text className="text-center font-medium">
+                {g.charAt(0).toUpperCase() + g.slice(1)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {/* Age */}
+      <Text className="text-textmuted font-medium pb-3 pt-3">Age</Text>
+      <AgePicker value={age} onChange={setAge} />
+
+      {/* Skills */}
+      <SkillsInput
+        value={skills}
+        onChange={(s) => {
+          Keyboard.dismiss();
+          setSkills(s);
+        }}
+      />
+
+      {/* Submit */}
       <TouchableOpacity
-        className="bg-accent p-4 rounded-xl mt-4"
+        className={`p-4 rounded-xl mt-8 ${
+          loading ? "bg-gray-400" : "bg-accent"
+        }`}
         onPress={handleSubmit}
         disabled={loading}
       >
-        <Text className="text-center text-white font-bold text-lg">
-          {loading ? "Saving..." : "Continue"}
-        </Text>
+        {loading ? (
+          <ActivityIndicator color="white" />
+        ) : (
+          <Text className="text-center text-white font-bold text-lg">
+            Continue
+          </Text>
+        )}
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }

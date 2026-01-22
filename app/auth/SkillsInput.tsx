@@ -1,6 +1,12 @@
-// components/SkillsInput.tsx
 import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Keyboard,
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 const HELPING_SKILLS = [
   "Buying milk for neighbours",
@@ -50,13 +56,11 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
 
   const addSkill = (skill: string) => {
     const clean = normaliseSkill(skill);
-    if (!clean) return;
-    if (value.includes(clean)) {
-      setQuery("");
-      return;
-    }
+    if (!clean || value.includes(clean)) return;
+
     onChange([...value, clean]);
     setQuery("");
+    Keyboard.dismiss(); // ✅ UX fix
   };
 
   const removeSkill = (skill: string) => {
@@ -71,16 +75,16 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
     );
 
   return (
-    <View className="w-full mt-2">
+    <View className="w-full mt-4 relative">
       <Text className="text-textmuted font-medium mb-1">Skills</Text>
 
-      {/* Selected skills as chips */}
+      {/* Selected skills */}
       <View className="flex-row flex-wrap gap-2 mb-2">
         {value.map((skill) => (
           <Pressable
             key={skill}
             onPress={() => removeSkill(skill)}
-            className="px-3 py-1 rounded-full bg-card flex-row items-center mb-1"
+            className="px-3 py-1 rounded-full bg-card flex-row items-center"
           >
             <Text className="text-xs mr-1 text-black">{skill}</Text>
             <Text className="text-xs text-gray-700">✕</Text>
@@ -96,39 +100,48 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
         className="bg-card p-3 rounded-xl text-sm text-black"
         placeholderTextColor="#6e6e6e"
         returnKeyType="done"
-        onSubmitEditing={() => {
-          if (trimmedQuery) addSkill(trimmedQuery);
-        }}
+        onSubmitEditing={() => trimmedQuery && addSkill(trimmedQuery)}
       />
 
-      {/* Suggestions + add custom */}
+      {/* Suggestions */}
       {(canAddCustom || suggestions.length > 0) && (
-        <ScrollView
-          className="mt-2 max-h-44 rounded-xl bg-white border border-[#d0d0d0]"
-          keyboardShouldPersistTaps="handled"
+        <View
+          style={{
+            position: "absolute",
+            top: 58,          // height of input
+            left: 0,
+            right: 0,
+            zIndex: 999,
+            elevation: 20,
+          }}
+          className="rounded-xl bg-white border border-[#d0d0d0] max-h-44"
         >
-          {canAddCustom && (
-            <Pressable
-              onPress={() => addSkill(trimmedQuery)}
-              className="px-3 py-2 border-b border-[#ececec]"
-            >
-              <Text className="text-sm text-black">
-                ➕ Add “{normaliseSkill(trimmedQuery)}”
-              </Text>
-            </Pressable>
-          )}
 
-          {suggestions.map((skill) => (
-            <Pressable
-              key={skill}
-              onPress={() => addSkill(skill)}
-              className="px-3 py-2 border-b border-[#ececec] last:border-b-0"
-            >
-              <Text className="text-sm text-black">{skill}</Text>
-            </Pressable>
-          ))}
-        </ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled">
+            {canAddCustom && (
+              <Pressable
+                onPress={() => addSkill(trimmedQuery)}
+                className="px-3 py-2 border-b border-[#ececec]"
+              >
+                <Text className="text-sm text-black">
+                  ➕ Add “{normaliseSkill(trimmedQuery)}”
+                </Text>
+              </Pressable>
+            )}
+
+            {suggestions.map((skill) => (
+              <Pressable
+                key={skill}
+                onPress={() => addSkill(skill)}
+                className="px-3 py-2 border-b border-[#ececec] last:border-b-0"
+              >
+                <Text className="text-sm text-black">{skill}</Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       )}
     </View>
   );
 }
+
