@@ -28,42 +28,51 @@ export default function UserDetails() {
   const [loading, setLoading] = useState(false);
   const [showGenderDropdown, setShowGenderDropdown] = useState(false);
 
+  /* ================= SUBMIT ================= */
+
   const handleSubmit = async () => {
     if (!name.trim() || !gender || skills.length === 0) {
-      Alert.alert(
-        "Missing info",
-        "Please enter name, gender, and at least one skill."
-      );
+      Alert.alert("Missing info", "Enter name, gender, and at least one skill.");
       return;
     }
 
     try {
       setLoading(true);
 
+      console.log("SENDING PROFILE DATA:", { name, age, gender, skills });
+
       const response = await completeProfile({
         name,
         age,
         gender,
-        skills,
+        skills, // MUST be array
       });
 
+      console.log("PROFILE SAVE RESPONSE:", response);
+
       if (response.success) {
+        // 🔥 IMPORTANT: Save ALL fields in context
         updateUser({
           name,
+          age,
+          gender,
           skills,
           isProfileComplete: true,
         });
+
         router.replace("/jobs" as never);
       } else {
         Alert.alert("Error", "Failed to save profile.");
       }
     } catch (err) {
-      console.error(err);
+      console.error("PROFILE SAVE ERROR:", err);
       Alert.alert("Error", "Something went wrong.");
     } finally {
       setLoading(false);
     }
   };
+
+  /* ================= UI ================= */
 
   return (
     <ScrollView
@@ -76,13 +85,13 @@ export default function UserDetails() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
+      {/* HEADER */}
       <View className="items-center mb-6">
         <FontAwesome name="paper-plane" size={48} />
         <Text className="text-3xl mt-6 font-bold">User Details</Text>
       </View>
 
-      {/* Name */}
+      {/* NAME */}
       <Text className="font-medium">Full Name</Text>
       <TextInput
         className="bg-card p-3 rounded-xl mt-1 mb-3"
@@ -91,7 +100,7 @@ export default function UserDetails() {
         onChangeText={setName}
       />
 
-      {/* Gender Dropdown */}
+      {/* GENDER */}
       <Text className="font-medium mb-2">Gender</Text>
 
       <TouchableOpacity
@@ -128,11 +137,12 @@ export default function UserDetails() {
         </View>
       )}
 
-      {/* Age */}
-      <Text className="text-textmuted font-medium pb-3 pt-3">Age</Text>
+      {/* AGE */}
+      <Text className="font-medium pb-2 pt-2">Age</Text>
       <AgePicker value={age} onChange={setAge} />
 
-      {/* Skills */}
+      {/* SKILLS */}
+      <Text className="font-medium pb-2 pt-4">Skills</Text>
       <SkillsInput
         value={skills}
         onChange={(s) => {
@@ -141,7 +151,7 @@ export default function UserDetails() {
         }}
       />
 
-      {/* Submit */}
+      {/* SUBMIT BUTTON */}
       <TouchableOpacity
         className={`p-4 rounded-xl mt-8 ${
           loading ? "bg-gray-400" : "bg-accent"

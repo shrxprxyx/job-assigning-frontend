@@ -32,11 +32,36 @@ export const auth = getAuth(app);
 // ---------- TYPES ----------
 export interface User {
   id: string;
+  firebaseUid?: string;
   phone: string;
-  isProfileComplete: boolean;
-  currentMode: "employer" | "worker";
+
   name?: string;
+  age?: number;
+  gender?: "male" | "female" | "other";
   skills?: string[];
+
+  profileImage?: string;
+
+  currentMode: "employer" | "worker";
+
+  availability?: {
+    isAvailable: boolean;
+    schedule?: string;
+  };
+
+  location?: {
+    type: string;
+    coordinates: [number, number];
+    text?: string;
+  };
+
+  rating?: {
+    average: number;
+    count: number;
+  };
+
+  isProfileComplete: boolean;
+  status?: string;
 }
 
 // ---------- SEND OTP ----------
