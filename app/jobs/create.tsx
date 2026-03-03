@@ -9,10 +9,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+
+
 import { createJob, updateJob, getJobById } from "../../services/job.service";
 
 type Params = {
-  mode?: string; // "create" | "edit"
+  mode?: string;
   jobId?: string;
 };
 
@@ -41,7 +43,6 @@ export default function CreateJob() {
     totalTime: "",
   });
 
-  // Fetch job data when editing
   useEffect(() => {
     if (isEdit && jobId) {
       fetchJobData();
@@ -50,7 +51,6 @@ export default function CreateJob() {
 
   const fetchJobData = async () => {
     if (!jobId) return;
-    
     setFetchingJob(true);
     try {
       const response = await getJobById(jobId);
@@ -65,8 +65,7 @@ export default function CreateJob() {
           totalTime: job.totalTime || "",
         });
       }
-    } catch (error) {
-      console.error("Failed to fetch job:", error);
+    } catch {
       Alert.alert("Error", "Failed to load job data");
     } finally {
       setFetchingJob(false);
@@ -77,64 +76,71 @@ export default function CreateJob() {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
+  // ✅ REQUIRED: convert text location → lat/lng
+  const geocodeLocation = async (address: string) => {
+    try {
+      const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+        address
+      )}`;
+      const res = await fetch(url, {
+        headers: { "User-Agent": "job-app" },
+      });
+      const data = await res.json();
+
+      if (!data.length) return null;
+
+      return {
+        lat: parseFloat(data[0].lat),
+        lng: parseFloat(data[0].lon),
+      };
+    } catch {
+      return null;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!form.title.trim() || !form.description.trim()) {
       Alert.alert("Missing Fields", "Please fill at least title and description.");
       return;
     }
 
-    if (!form.payment.trim()) {
-      Alert.alert("Missing Fields", "Please enter payment information.");
-      return;
-    }
-
-    if (!form.locationText.trim()) {
-      Alert.alert("Missing Fields", "Please enter location.");
+    if (!form.payment.trim() || !form.locationText.trim()) {
+      Alert.alert("Missing Fields", "Payment and location are required.");
       return;
     }
 
     setLoading(true);
 
     try {
-      let response;
+      // ✅ REQUIRED: get coordinates
+      const locationGeo = await geocodeLocation(form.locationText.trim());
 
-      if (isEdit && jobId) {
-        response = await updateJob(jobId, {
-          title: form.title.trim(),
-          description: form.description.trim(),
-          startTime: form.startTime.trim(),
-          payment: form.payment.trim(),
-          locationText: form.locationText.trim(),
-          totalTime: form.totalTime.trim(),
-        } as any);
-      } else {
-        response = await createJob({
-          title: form.title.trim(),
-          description: form.description.trim(),
-          startTime: form.startTime.trim(),
-          payment: form.payment.trim(),
-          locationText: form.locationText.trim(),
-          totalTime: form.totalTime.trim(),
-        });
-      }
+      const payload = {
+        title: form.title.trim(),
+        description: form.description.trim(),
+        startTime: form.startTime.trim(),
+        payment: form.payment.trim(),
+        locationText: form.locationText.trim(),
+        totalTime: form.totalTime.trim(),
+        locationGeo: locationGeo ?? undefined,
+      };
+
+      const response =
+        isEdit && jobId
+          ? await updateJob(jobId, payload as any)
+          : await createJob(payload);
 
       if (response.success) {
         Alert.alert(
           "Success",
           isEdit ? "Job updated successfully" : "Job created successfully",
-          [
-            {
-              text: "OK",
-              onPress: () => router.back(),
-            },
-          ]
+          [{ text: "OK", onPress: () => router.back() }]
         );
       } else {
-        Alert.alert("Error", (response as any).message || "Failed to save job");
+        Alert.alert("Error", "Failed to save job");
       }
-    } catch (error) {
-      console.error("Submit error:", error);
-      Alert.alert("Error", "Something went wrong. Please try again.");
+    } catch {
+      Alert.alert("Error", "Something went wrong");
     } finally {
       setLoading(false);
     }
@@ -165,77 +171,62 @@ export default function CreateJob() {
         paddingTop: 40,
         paddingBottom: 32,
       }}
-      keyboardShouldPersistTaps="handled"
     >
       <Text className="text-3xl font-bold text-textmain mb-8">
         {isEdit ? "Edit Job" : "Add New Job"}
       </Text>
 
-      {/* Job title */}
       <Text className="text-textmuted font-medium mb-1">Job Title</Text>
       <TextInput
         className="bg-card p-3 rounded-2xl mb-4"
-        placeholder="Enter job title"
         value={form.title}
         onChangeText={(t) => updateField("title", t)}
       />
 
-      {/* Description */}
       <Text className="text-textmuted font-medium mb-1">Description</Text>
       <TextInput
         className="bg-card p-3 rounded-2xl mb-4 min-h-[96px]"
-        placeholder="Describe the job"
+        multiline
         value={form.description}
         onChangeText={(t) => updateField("description", t)}
-        multiline
       />
 
-      {/* Starting time */}
       <Text className="text-textmuted font-medium mb-1">Starting time</Text>
       <TextInput
         className="bg-card p-3 rounded-2xl mb-4"
-        placeholder="e.g. Today 5:00 PM"
         value={form.startTime}
         onChangeText={(t) => updateField("startTime", t)}
       />
 
-      {/* Payment */}
-      <Text className="text-textmuted font-medium mb-1">payment</Text>
+      <Text className="text-textmuted font-medium mb-1">Payment</Text>
       <TextInput
         className="bg-card p-3 rounded-2xl mb-4"
-        placeholder="e.g. ₹200"
         keyboardType="numeric"
         value={form.payment}
         onChangeText={(t) => updateField("payment", t)}
       />
 
-      {/* Location (free text for now) */}
       <Text className="text-textmuted font-medium mb-1">Location</Text>
       <TextInput
-        className="bg-card p-3 rounded-2xl mb-1"
-        placeholder="Where will this job happen?"
+        className="bg-card p-3 rounded-2xl mb-4"
         value={form.locationText}
         onChangeText={(t) => updateField("locationText", t)}
       />
-      <Text className="text-xs text-textmuted mb-4">
-        Example: &quot;Near T Nagar bus stand, Chennai&quot;
-      </Text>
 
-      {/* Total time */}
       <Text className="text-textmuted font-medium mb-1">Total time</Text>
       <TextInput
         className="bg-card p-3 rounded-2xl mb-6"
-        placeholder="e.g. 30 minutes"
         value={form.totalTime}
         onChangeText={(t) => updateField("totalTime", t)}
       />
 
       <TouchableOpacity
         onPress={handleSubmit}
+        disabled={loading}
         className="bg-accent p-4 rounded-2xl mt-2"
       >
         <Text className="text-white text-center text-lg font-bold">
-          {isEdit ? "Save Changes" : "Create Job"}
+          {loading ? "Saving..." : isEdit ? "Save Changes" : "Create Job"}
         </Text>
       </TouchableOpacity>
     </ScrollView>

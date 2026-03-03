@@ -1,17 +1,18 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { useRouter, useFocusEffect } from "expo-router";
-import React, { useState, useCallback } from "react";
-import { 
-  ScrollView, 
-  Text, 
-  TouchableOpacity, 
-  View, 
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback, useState } from "react";
+import {
   ActivityIndicator,
+  Alert,
+  Platform,
   RefreshControl,
-  Alert 
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { getMyJobs, cancelJob as cancelJobAPI, Job } from "../../services/job.service";
 import { useAuth } from "../../context/AuthContext";
+import { cancelJob as cancelJobAPI, getMyJobs, Job } from "../../services/job.service";
 
 export default function JobsScreen() {
   const router = useRouter();
@@ -173,10 +174,9 @@ export default function JobsScreen() {
 
             {/* Payment & Location */}
             <View className="flex-row gap-4 mb-4">
-              <Text className="text-xs text-textmuted">💰 {job.payment}</Text>
-              <Text className="text-xs text-textmuted">📍 {job.locationText}</Text>
+              <Text className="text-xs text-textmuted"> {job.locationText}</Text>
               {job.applicantCount !== undefined && job.applicantCount > 0 && (
-                <Text className="text-xs text-textmuted">👥 {job.applicantCount} applicants</Text>
+                <Text className="text-xs text-textmuted">{job.applicantCount} applicants</Text>
               )}
             </View>
 
@@ -210,34 +210,37 @@ export default function JobsScreen() {
       </ScrollView>
 
       {/* BOTTOM NAVBAR */}
-      <View className="flex-row justify-around items-center bg-bgmain border-t border-card py-3">
-        {/* CURRENT SCREEN */}
-        <View className="w-16 h-16 rounded-2xl bg-textmain items-center justify-center">
-          <FontAwesome name="plus" size={22} color="white" />
+      <View
+        className="absolute bottom-0 left-0 right-0 flex-row justify-around items-center bg-white border-t border-stone-100 px-2"
+        style={{ paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 24 : 12 }}
+      >
+        <View className="flex-1 items-center gap-1 py-1">
+          <FontAwesome name="plus-circle" size={22} color="#059669" />
+          <Text className="text-[10px] text-emerald-600 font-semibold">Post Job</Text>
         </View>
 
-        {/* Briefcase */}
-        <TouchableOpacity 
-          onPress={() => router.push("/jobs/availablejobs")} 
-          className="w-16 h-16 rounded-2xl border border-textmain items-center justify-center"
-        >
-          <FontAwesome name="briefcase" size={22} color="#111827" />
-        </TouchableOpacity>
-        
-        {/* Explore */}
         <TouchableOpacity
-          onPress={() => router.push("/jobs/explore")}
-          className="w-16 h-16 rounded-2xl border border-textmain items-center justify-center"
+          onPress={() => router.push("/jobs/availablejobs")}
+          className="flex-1 items-center gap-1 py-1"
         >
-          <FontAwesome name="search" size={22} color="#111827" />
+          <FontAwesome name="briefcase" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Jobs</Text>
         </TouchableOpacity>
 
-        {/* Profile */}
+        <TouchableOpacity
+          onPress={() => router.push("/jobs/explore")}
+          className="flex-1 items-center gap-1 py-1"
+        >
+          <FontAwesome name="search" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Explore</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity
           onPress={() => router.push("/profile")}
-          className="w-16 h-16 rounded-2xl border border-textmain items-center justify-center"
+          className="flex-1 items-center gap-1 py-1"
         >
-          <FontAwesome name="user" size={22} color="#111827" />
+          <FontAwesome name="user" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Profile</Text>
         </TouchableOpacity>
       </View>
     </View>

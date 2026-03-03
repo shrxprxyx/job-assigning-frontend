@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Keyboard,
   Pressable,
   ScrollView,
   Text,
@@ -35,13 +34,13 @@ type SkillsInputProps = {
 
 export function SkillsInput({ value, onChange }: SkillsInputProps) {
   const [query, setQuery] = useState("");
+  const [isFocused, setIsFocused] = useState(false);
 
   const trimmedQuery = query.trim();
 
   const suggestions = useMemo(() => {
     if (!trimmedQuery) return [];
     const lower = trimmedQuery.toLowerCase();
-
     return HELPING_SKILLS.filter(
       (skill) =>
         skill.toLowerCase().includes(lower) && !value.includes(skill)
@@ -57,10 +56,8 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
   const addSkill = (skill: string) => {
     const clean = normaliseSkill(skill);
     if (!clean || value.includes(clean)) return;
-
     onChange([...value, clean]);
     setQuery("");
-    Keyboard.dismiss(); // ✅ UX fix
   };
 
   const removeSkill = (skill: string) => {
@@ -74,57 +71,62 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
       (s) => s.toLowerCase() === trimmedQuery.toLowerCase()
     );
 
+  const showDropdown = isFocused && (canAddCustom || suggestions.length > 0);
+
   return (
-    <View className="w-full mt-4 relative">
+    // Removed mt-4 — parent (UserDetails) handles top spacing via paddingTop
+    <View className="w-full">
       <Text className="text-textmuted font-medium mb-1">Skills</Text>
 
-      {/* Selected skills */}
-      <View className="flex-row flex-wrap gap-2 mb-2">
-        {value.map((skill) => (
-          <Pressable
-            key={skill}
-            onPress={() => removeSkill(skill)}
-            className="px-3 py-1 rounded-full bg-card flex-row items-center"
-          >
-            <Text className="text-xs mr-1 text-black">{skill}</Text>
-            <Text className="text-xs text-gray-700">✕</Text>
-          </Pressable>
-        ))}
-      </View>
+      {/* Selected skill chips */}
+      {value.length > 0 && (
+        <View className="flex-row flex-wrap gap-2 mb-3">
+          {value.map((skill) => (
+            <Pressable
+              key={skill}
+              onPress={() => removeSkill(skill)}
+              className="px-3 py-1.5 rounded-full bg-card flex-row items-center gap-1"
+            >
+              <Text className="text-xs text-black">{skill}</Text>
+              <Text className="text-xs text-gray-500">✕</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {/* Input */}
       <TextInput
         placeholder="Type a helping skill, e.g. 'buy milk'"
         value={query}
         onChangeText={setQuery}
+        onFocus={() => setIsFocused(true)}
+        onBlur={() => {
+          setTimeout(() => setIsFocused(false), 150);
+        }}
         className="bg-card p-3 rounded-xl text-sm text-black"
         placeholderTextColor="#6e6e6e"
         returnKeyType="done"
-        onSubmitEditing={() => trimmedQuery && addSkill(trimmedQuery)}
+        blurOnSubmit={false}
+        onSubmitEditing={() => {
+          if (trimmedQuery) addSkill(trimmedQuery);
+        }}
       />
 
-      {/* Suggestions */}
-      {(canAddCustom || suggestions.length > 0) && (
-        <View
-          style={{
-            position: "absolute",
-            top: 58,          // height of input
-            left: 0,
-            right: 0,
-            zIndex: 999,
-            elevation: 20,
-          }}
-          className="rounded-xl bg-white border border-[#d0d0d0] max-h-44"
-        >
-
-          <ScrollView keyboardShouldPersistTaps="handled">
+      {/* Dropdown */}
+      {showDropdown && (
+        <View className="mt-1 rounded-xl bg-white border border-[#d0d0d0] overflow-hidden max-h-44">
+          <ScrollView
+            keyboardShouldPersistTaps="always"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator={false}
+          >
             {canAddCustom && (
               <Pressable
                 onPress={() => addSkill(trimmedQuery)}
-                className="px-3 py-2 border-b border-[#ececec]"
+                className="px-3 py-2.5 border-b border-[#ececec]"
               >
                 <Text className="text-sm text-black">
-                  ➕ Add “{normaliseSkill(trimmedQuery)}”
+                  ➕ Add "{normaliseSkill(trimmedQuery)}"
                 </Text>
               </Pressable>
             )}
@@ -133,7 +135,7 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
               <Pressable
                 key={skill}
                 onPress={() => addSkill(skill)}
-                className="px-3 py-2 border-b border-[#ececec] last:border-b-0"
+                className="px-3 py-2.5 border-b border-[#ececec]"
               >
                 <Text className="text-sm text-black">{skill}</Text>
               </Pressable>
@@ -144,4 +146,3 @@ export function SkillsInput({ value, onChange }: SkillsInputProps) {
     </View>
   );
 }
-

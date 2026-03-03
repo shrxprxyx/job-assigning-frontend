@@ -1,23 +1,24 @@
 import { FontAwesome } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
-import React, { useState, useCallback } from "react";
-import { 
-  ScrollView, 
-  Text, 
-  TouchableOpacity, 
-  View, 
+import React, { useCallback, useState } from "react";
+import {
   ActivityIndicator,
+  Alert,
+  Platform,
   RefreshControl,
-  Alert
+  ScrollView,
+  Text,
+  TouchableOpacity,
+  View
 } from "react-native";
-import { 
-  getAvailableJobs, 
-  getAcceptedJobs, 
-  applyForJob,
-  Job, 
-  AcceptedJob 
-} from "../../services/job.service";
 import { useAuth } from "../../context/AuthContext";
+import {
+  AcceptedJob,
+  applyForJob,
+  getAcceptedJobs,
+  getAvailableJobs,
+  Job
+} from "../../services/job.service";
 
 export default function AvailableJobsScreen() {
   const { user } = useAuth();
@@ -274,30 +275,37 @@ export default function AvailableJobsScreen() {
       </ScrollView>
 
       {/* BOTTOM NAV */}
-      <View className="flex-row justify-around items-center bg-[#F0FDF4] border-t border-[#DCFCE7] py-3">
+      <View
+        className="absolute bottom-0 left-0 right-0 flex-row justify-around items-center bg-white border-t border-stone-100 px-2"
+        style={{ paddingTop: 10, paddingBottom: Platform.OS === "ios" ? 24 : 12 }}
+      >
         <TouchableOpacity
           onPress={() => router.push("/jobs")}
-          className="w-16 h-16 rounded-2xl border border-[#14532D] items-center justify-center"
+          className="flex-1 items-center gap-1 py-1"
         >
-          <FontAwesome name="plus" size={22} color="#14532D" />
+          <FontAwesome name="plus-circle" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Post Job</Text>
         </TouchableOpacity>
 
-        <View className="w-16 h-16 rounded-2xl bg-[#14532D] items-center justify-center">
-          <FontAwesome name="briefcase" size={22} color="white" />
+        <View className="flex-1 items-center gap-1 py-1">
+          <FontAwesome name="briefcase" size={22} color="#059669" />
+          <Text className="text-[10px] text-emerald-600 font-semibold">Jobs</Text>
         </View>
 
         <TouchableOpacity
           onPress={() => router.push("/jobs/explore")}
-          className="w-16 h-16 rounded-2xl border border-[#14532D] items-center justify-center"
+          className="flex-1 items-center gap-1 py-1"
         >
-          <FontAwesome name="search" size={22} color="#14532D" />
+          <FontAwesome name="search" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Explore</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           onPress={() => router.push("/profile")}
-          className="w-16 h-16 rounded-2xl border border-[#14532D] items-center justify-center"
+          className="flex-1 items-center gap-1 py-1"
         >
-          <FontAwesome name="user" size={22} color="#14532D" />
+          <FontAwesome name="user" size={22} color="#a8a29e" />
+          <Text className="text-[10px] text-stone-400">Profile</Text>
         </TouchableOpacity>
       </View>
     </View>

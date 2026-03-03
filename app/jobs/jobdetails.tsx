@@ -1,16 +1,31 @@
 import { FontAwesome } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Linking,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
-  ActivityIndicator,
 } from "react-native";
-import { getJobById, applyForJob, Job } from "../../services/job.service";
+import { applyForJob, getJobById, Job } from "../../services/job.service";
+
+// Geocode a text address → { lat, lng } using Nominatim (same as create.tsx)
+async function geocodeAddress(
+  address: string
+): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`;
+    const res = await fetch(url, { headers: { "User-Agent": "job-app" } });
+    const data = await res.json();
+    if (!data.length) return null;
+    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  } catch {
+    return null;
+  }
+}
 
 export default function JobDetailsScreen() {
   const { jobId, isAccepted } = useLocalSearchParams<{
@@ -23,20 +38,34 @@ export default function JobDetailsScreen() {
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
 
+  // Resolved coordinates — either from job.locationGeo or geocoded on the fly
+  const [resolvedGeo, setResolvedGeo] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [geocoding, setGeocoding] = useState(false);
+
   useEffect(() => {
-    if (jobId) {
-      fetchJobDetails();
-    } else {
-      setLoading(false);
-    }
+    if (jobId) fetchJobDetails();
+    else setLoading(false);
   }, [jobId]);
 
   const fetchJobDetails = async () => {
     try {
       const response = await getJobById(jobId!);
       if (response.success && response.data?.job) {
-        setJob(response.data.job);
-        setApplied(response.data.job.hasApplied || false);
+        const fetchedJob = response.data.job;
+        setJob(fetchedJob);
+        setApplied(fetchedJob.hasApplied || false);
+
+        // If coords already exist on the job, use them immediately
+        const geo = fetchedJob.locationGeo;
+        if (geo?.lat && geo?.lng) {
+          setResolvedGeo({ lat: geo.lat, lng: geo.lng });
+        } else if (fetchedJob.locationText) {
+          // Coords missing — geocode now so the button works
+          resolveCoords(fetchedJob.locationText);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch job:", error);
@@ -45,9 +74,15 @@ export default function JobDetailsScreen() {
     }
   };
 
+  const resolveCoords = async (locationText: string) => {
+    setGeocoding(true);
+    const geo = await geocodeAddress(locationText);
+    setResolvedGeo(geo); // null if geocoding failed — button will fall back to Google Maps
+    setGeocoding(false);
+  };
+
   const handleApply = async () => {
     if (!job) return;
-
     setApplying(true);
     try {
       const response = await applyForJob(job.id);
@@ -55,21 +90,48 @@ export default function JobDetailsScreen() {
         setApplied(true);
         Alert.alert("Applied", "You have successfully applied for this job.");
       } else {
-        Alert.alert("Error", (response as any).message || "Failed to apply");
+        Alert.alert("Error", "Failed to apply for job");
       }
-    } catch (error) {
+    } catch {
       Alert.alert("Error", "Something went wrong");
     } finally {
       setApplying(false);
     }
   };
 
-  const openInMaps = () => {
-    if (!job) return;
-    const query = encodeURIComponent(job.locationText || "");
-    Linking.openURL(
-      `https://www.google.com/maps/search/?api=1&query=${query}`
-    );
+  const openInGoogleMaps = () => {
+    if (!job?.locationText) return;
+    const query = encodeURIComponent(job.locationText);
+    Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${query}`);
+  };
+
+  const openLeafletMap = () => {
+    if (geocoding) {
+      Alert.alert("Please wait", "Resolving map location…");
+      return;
+    }
+
+    if (!resolvedGeo) {
+      // Coords couldn't be resolved at all — fall back gracefully to Google Maps
+      Alert.alert(
+        "Opening in Google Maps",
+        "Could not resolve exact coordinates. Opening in Google Maps instead.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open", onPress: openInGoogleMaps },
+        ]
+      );
+      return;
+    }
+
+    router.push({
+      pathname: "/jobs/jobmap",
+      params: {
+        lat: resolvedGeo.lat.toString(),
+        lng: resolvedGeo.lng.toString(),
+        title: job!.title,
+      },
+    });
   };
 
   if (loading) {
@@ -100,19 +162,16 @@ export default function JobDetailsScreen() {
   return (
     <View className="flex-1 bg-[#F0FDF4]">
       <ScrollView contentContainerStyle={{ padding: 24, paddingBottom: 40 }}>
-        {/* HEADER */}
         <View className="mb-6 mt-10">
           <Text className="text-[#14532D] text-3xl font-bold">Job Details</Text>
         </View>
 
-        {/* JOB CARD */}
         <View className="bg-white rounded-3xl border border-[#DCFCE7] p-5 mb-6">
-          {/* TITLE + PAYMENT */}
+          {/* TITLE */}
           <View className="flex-row justify-between items-start mb-2">
             <Text className="text-[#14532D] text-xl font-semibold flex-1 mr-3">
               {job.title}
             </Text>
-
             <View className="bg-[#DCFCE7] px-3 py-1 rounded-full">
               <Text className="text-[#166534] text-xs font-medium">
                 {job.payment}
@@ -120,28 +179,10 @@ export default function JobDetailsScreen() {
             </View>
           </View>
 
-          {/* STATUS BADGE */}
+          {/* STATUS */}
           <View className="flex-row mb-3">
-            <View
-              className={`px-3 py-1 rounded-full ${
-                job.status === "Open"
-                  ? "bg-green-100"
-                  : job.status === "Closed"
-                  ? "bg-gray-100"
-                  : "bg-red-100"
-              }`}
-            >
-              <Text
-                className={`text-xs ${
-                  job.status === "Open"
-                    ? "text-green-700"
-                    : job.status === "Closed"
-                    ? "text-gray-700"
-                    : "text-red-700"
-                }`}
-              >
-                {job.status}
-              </Text>
+            <View className="px-3 py-1 rounded-full bg-green-100">
+              <Text className="text-xs text-green-700">{job.status}</Text>
             </View>
           </View>
 
@@ -156,44 +197,37 @@ export default function JobDetailsScreen() {
             <Text className="text-xs text-gray-600 mt-1">
               Duration: {job.totalTime || "Flexible"}
             </Text>
-            {job.startTime && (
-              <Text className="text-xs text-gray-600 mt-1">
-                Start: {new Date(job.startTime).toLocaleString()}
-              </Text>
-            )}
           </View>
 
-          {/* EMPLOYER INFO */}
-          {job.createdBy && (
-            <View className="bg-[#F0FDF4] p-3 rounded-2xl mb-4">
-              <Text className="text-xs text-gray-500 mb-1">Posted by</Text>
-              <Text className="text-[#14532D] font-medium">
-                {job.createdBy.name || "Unknown"}
+          {/* MAP BUTTONS */}
+          <View className="gap-3 mb-4">
+            <TouchableOpacity
+              onPress={openInGoogleMaps}
+              className="border border-[#166534] py-3 rounded-full"
+            >
+              <Text className="text-center text-[#166534] font-medium">
+                Open in Google Maps
               </Text>
-              {job.createdBy.rating && (
-                <View className="flex-row items-center mt-1">
-                  <FontAwesome name="star" size={12} color="#EAB308" />
-                  <Text className="text-xs text-gray-600 ml-1">
-                    {typeof job.createdBy.rating === "object"
-                      ? (job.createdBy.rating as any).average?.toFixed(1)
-                      : job.createdBy.rating}
-                  </Text>
-                </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={openLeafletMap}
+              className="bg-[#166534] py-3 rounded-full flex-row items-center justify-center gap-2"
+            >
+              {geocoding ? (
+                <>
+                  <ActivityIndicator size="small" color="white" />
+                  <Text className="text-white font-medium">Locating…</Text>
+                </>
+              ) : (
+                <Text className="text-white font-medium">
+                  View Live Map (In App)
+                </Text>
               )}
-            </View>
-          )}
+            </TouchableOpacity>
+          </View>
 
-          {/* MAP BUTTON */}
-          <TouchableOpacity
-            onPress={openInMaps}
-            className="border border-[#166534] py-3 rounded-full mb-4"
-          >
-            <Text className="text-center text-[#166534] font-medium">
-              View on Map
-            </Text>
-          </TouchableOpacity>
-
-          {/* APPLY BUTTON (ONLY FOR NON-ACCEPTED JOBS) */}
+          {/* APPLY */}
           {!isJobAccepted && job.status === "Open" && (
             <TouchableOpacity
               disabled={applied || applying}
@@ -212,7 +246,6 @@ export default function JobDetailsScreen() {
             </TouchableOpacity>
           )}
 
-          {/* ACCEPTED BADGE */}
           {isJobAccepted && (
             <View className="bg-[#DCFCE7] py-3 rounded-full">
               <Text className="text-center text-[#14532D] font-semibold">
@@ -222,7 +255,6 @@ export default function JobDetailsScreen() {
           )}
         </View>
 
-        {/* BACK BUTTON */}
         <TouchableOpacity
           onPress={() => router.back()}
           className="flex-row items-center justify-center gap-2"

@@ -3,17 +3,19 @@ import { router, useLocalSearchParams } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
   KeyboardAvoidingView,
   Platform,
+  StatusBar,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
 
-import api from "../../services/api.service";
 import { useAuth } from "../../context/AuthContext";
+import api from "../../services/api.service";
 
 type ChatRoom = {
   chatRoomId: string;
@@ -34,6 +36,46 @@ type ChatMessage = {
   read?: boolean;
 };
 
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+function Avatar({ name, size = 42 }: { name?: string; size?: number }) {
+  const initials = name
+    ? name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "?";
+
+  const sizeClass =
+    size <= 28
+      ? "w-7 h-7 rounded-full"
+      : size <= 36
+      ? "w-9 h-9 rounded-full"
+      : size <= 42
+      ? "w-[42px] h-[42px] rounded-full"
+      : "w-12 h-12 rounded-full";
+
+  const textClass =
+    size <= 28 ? "text-[10px]" : size <= 36 ? "text-xs" : "text-sm";
+
+  return (
+    <View className={`${sizeClass} bg-emerald-100 items-center justify-center`}>
+      <Text className={`${textClass} font-bold text-emerald-700 tracking-wide`}>
+        {initials}
+      </Text>
+    </View>
+  );
+}
+
+// ─── Status badge ─────────────────────────────────────────────────────────────
+function StatusBadge({ status }: { status?: string }) {
+  if (!status) return null;
+  const label = status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+  return (
+    <View className="flex-row items-center gap-1 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
+      <View className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+      <Text className="text-[11px] font-semibold text-emerald-700">{label}</Text>
+    </View>
+  );
+}
+
+// ─── Main screen ──────────────────────────────────────────────────────────────
 export default function ChatScreen() {
   const params = useLocalSearchParams<{ chatRoomId?: string | string[] }>();
   const paramChatRoomId = useMemo(() => {
@@ -42,25 +84,21 @@ export default function ChatScreen() {
   }, [params]);
 
   const openedWithIdRef = useRef<boolean>(!!paramChatRoomId);
-
   const { user } = useAuth();
   const myUserId = (user as any)?.id ?? (user as any)?._id;
 
   const [activeChatRoomId, setActiveChatRoomId] = useState<string | null>(
     paramChatRoomId ?? null
   );
-
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
-
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
-
   const [sending, setSending] = useState(false);
   const [text, setText] = useState("");
   const listRef = useRef<FlatList>(null);
+  const sendScale = useRef(new Animated.Value(1)).current;
 
-  // If screen is opened with /jobs/chat?chatRoomId=xxxx, respect it
   useEffect(() => {
     if (paramChatRoomId) setActiveChatRoomId(paramChatRoomId);
   }, [paramChatRoomId]);
@@ -70,13 +108,9 @@ export default function ChatScreen() {
     try {
       const res = await api.get("/chat");
       const body = (res as any)?.data ?? res;
-
-      const rooms: ChatRoom[] =
-        body?.data?.chatRooms ?? body?.chatRooms ?? [];
-
+      const rooms: ChatRoom[] = body?.data?.chatRooms ?? body?.chatRooms ?? [];
       setChatRooms(Array.isArray(rooms) ? rooms : []);
-    } catch (e) {
-      console.error("Load chat rooms failed", e);
+    } catch {
       setChatRooms([]);
     } finally {
       setRoomsLoading(false);
@@ -88,34 +122,25 @@ export default function ChatScreen() {
     try {
       const res = await api.get(`/chat/${roomId}/messages`);
       const body = (res as any)?.data ?? res;
-
-      const msgs: ChatMessage[] =
-        body?.data?.messages ?? body?.messages ?? [];
-
+      const msgs: ChatMessage[] = body?.data?.messages ?? body?.messages ?? [];
       setMessages(Array.isArray(msgs) ? msgs : []);
-    } catch (e) {
-      console.error("Load messages failed", e);
+    } catch {
       setMessages([]);
     } finally {
       setLoadingMessages(false);
     }
   };
 
-  // If no active room -> load rooms list
   useEffect(() => {
-    if (!activeChatRoomId) {
-      loadChatRooms();
-    }
+    if (!activeChatRoomId) loadChatRooms();
   }, [activeChatRoomId]);
 
-  // If active room -> load messages
   useEffect(() => {
     if (!activeChatRoomId) return;
     loadMessages(activeChatRoomId);
   }, [activeChatRoomId]);
 
   const handleBack = () => {
-    // If user came from FAB (no id initially), go back to rooms list
     if (!openedWithIdRef.current && activeChatRoomId) {
       setActiveChatRoomId(null);
       setMessages([]);
@@ -125,17 +150,22 @@ export default function ChatScreen() {
     router.back();
   };
 
-  const sendMessage = async () => {
-    if (!activeChatRoomId) return;
-    if (!text.trim()) return;
+  const animateSend = () => {
+    Animated.sequence([
+      Animated.spring(sendScale, { toValue: 0.82, useNativeDriver: true, speed: 40 }),
+      Animated.spring(sendScale, { toValue: 1, useNativeDriver: true, speed: 20 }),
+    ]).start();
+  };
 
+  const sendMessage = async () => {
+    if (!activeChatRoomId || !text.trim()) return;
+    animateSend();
     setSending(true);
     try {
-      await api.post(`/chat/${activeChatRoomId}/message`, {
-        message: text,
-      });
+      await api.post(`/chat/${activeChatRoomId}/message`, { message: text });
       setText("");
       await loadMessages(activeChatRoomId);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       console.error("Send failed", e);
     } finally {
@@ -143,33 +173,60 @@ export default function ChatScreen() {
     }
   };
 
-  // ------------ UI: Rooms List (when no chat selected) ------------
+  const activeRoom = chatRooms.find((r) => r.chatRoomId === activeChatRoomId);
+
+  // ══════════════════════════════════════════════════════════════════
+  //  ROOMS LIST
+  // ══════════════════════════════════════════════════════════════════
   if (!activeChatRoomId) {
     return (
-      <View className="flex-1 bg-[#F0FDF4]">
-        {/* HEADER */}
-        <View className="flex-row items-center px-4 pt-12 pb-3 bg-white border-b">
-          <TouchableOpacity onPress={handleBack}>
-            <FontAwesome name="arrow-left" size={18} />
+      <View className="flex-1 bg-stone-50">
+        <StatusBar barStyle="dark-content" />
+
+        {/* Header */}
+        <View className="flex-row items-center gap-3 px-5 pt-14 pb-4 bg-white border-b border-stone-100 shadow-sm">
+          <TouchableOpacity
+            onPress={handleBack}
+            className="w-9 h-9 rounded-full bg-stone-100 items-center justify-center"
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <FontAwesome name="arrow-left" size={14} color="#1c1917" />
           </TouchableOpacity>
-          <Text className="ml-3 font-bold text-lg">Chats</Text>
+          <View className="flex-1">
+            <Text className="text-base font-bold text-stone-900 tracking-tight">
+              Messages
+            </Text>
+            <Text className="text-xs text-stone-400 mt-0.5">
+              {chatRooms.length > 0
+                ? `${chatRooms.length} conversations`
+                : "Your job conversations"}
+            </Text>
+          </View>
         </View>
 
         {roomsLoading ? (
-          <View className="flex-1 justify-center items-center">
-            <ActivityIndicator />
+          <View className="flex-1 items-center justify-center gap-3">
+            <ActivityIndicator color="#059669" size="large" />
+            <Text className="text-sm text-stone-400 mt-3">Loading chats…</Text>
           </View>
         ) : chatRooms.length === 0 ? (
-          <View className="flex-1 justify-center items-center px-6">
-            <Text className="text-gray-600 text-center">
-              No chats found yet.
+          <View className="flex-1 items-center justify-center px-10">
+            <View className="w-20 h-20 rounded-full bg-emerald-100 items-center justify-center mb-4">
+              <FontAwesome name="comments-o" size={36} color="#059669" />
+            </View>
+            <Text className="text-lg font-bold text-stone-800 tracking-tight mb-2">
+              No conversations yet
+            </Text>
+            <Text className="text-sm text-stone-400 text-center leading-5">
+              When you connect with employers or workers, your chats will appear here.
             </Text>
           </View>
         ) : (
           <FlatList
             data={chatRooms}
             keyExtractor={(item) => item.chatRoomId}
-            contentContainerStyle={{ padding: 12 }}
+            contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const otherName = item.isUserWorker
                 ? item.employer?.name
@@ -177,21 +234,26 @@ export default function ChatScreen() {
 
               return (
                 <TouchableOpacity
-                  className="bg-white rounded-xl p-4 mb-3 border"
-                  activeOpacity={0.8}
+                  className="flex-row items-center gap-3 bg-white rounded-2xl p-4 mb-3 border border-stone-100"
+                  activeOpacity={0.72}
                   onPress={() => setActiveChatRoomId(item.chatRoomId)}
                 >
-                  <Text className="font-bold text-base">
-                    {item.job?.title ?? "Job"}
-                  </Text>
-                  <Text className="text-gray-600 mt-1">
-                    {otherName ? `With: ${otherName}` : "Open chat"}
-                  </Text>
-                  {item.status ? (
-                    <Text className="text-gray-500 mt-1 text-xs">
-                      Status: {item.status}
+                  <Avatar name={otherName} size={48} />
+                  <View className="flex-1 gap-1">
+                    <View className="flex-row items-center justify-between gap-2">
+                      <Text
+                        className="flex-1 text-sm font-bold text-stone-900 tracking-tight"
+                        numberOfLines={1}
+                      >
+                        {item.job?.title ?? "Job"}
+                      </Text>
+                      <StatusBadge status={item.status} />
+                    </View>
+                    <Text className="text-[13px] text-stone-400" numberOfLines={1}>
+                      {otherName ? `Chat with ${otherName}` : "Open conversation"}
                     </Text>
-                  ) : null}
+                  </View>
+                  <FontAwesome name="chevron-right" size={11} color="#d4d4c8" />
                 </TouchableOpacity>
               );
             }}
@@ -201,65 +263,171 @@ export default function ChatScreen() {
     );
   }
 
-  // ------------ UI: Messages View (when room selected) ------------
+  // ══════════════════════════════════════════════════════════════════
+  //  MESSAGES VIEW
+  // ══════════════════════════════════════════════════════════════════
+  const otherName = activeRoom
+    ? activeRoom.isUserWorker
+      ? activeRoom.employer?.name
+      : activeRoom.worker?.name
+    : undefined;
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : undefined}
-      className="flex-1 bg-[#F0FDF4]"
+      className="flex-1 bg-stone-50"
     >
-      {/* HEADER */}
-      <View className="flex-row items-center px-4 pt-12 pb-3 bg-white border-b">
-        <TouchableOpacity onPress={handleBack}>
-          <FontAwesome name="arrow-left" size={18} />
+      <StatusBar barStyle="dark-content" />
+
+      {/* Header */}
+      <View className="flex-row items-center gap-3 px-5 pt-14 pb-4 bg-white border-b border-stone-100 shadow-sm">
+        <TouchableOpacity
+          onPress={handleBack}
+          className="w-9 h-9 rounded-full bg-stone-100 items-center justify-center"
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <FontAwesome name="arrow-left" size={14} color="#1c1917" />
         </TouchableOpacity>
-        <Text className="ml-3 font-bold text-lg">Chat</Text>
+        {otherName && <Avatar name={otherName} size={36} />}
+        <View className="flex-1">
+          <Text className="text-base font-bold text-stone-900 tracking-tight">
+            {otherName ?? "Chat"}
+          </Text>
+          {activeRoom?.job?.title && (
+            <Text className="text-xs text-stone-400 mt-0.5" numberOfLines={1}>
+              {activeRoom.job.title}
+            </Text>
+          )}
+        </View>
+        {activeRoom?.status && <StatusBadge status={activeRoom.status} />}
       </View>
 
-      {/* MESSAGES */}
+      {/* Messages */}
       {loadingMessages ? (
-        <View className="flex-1 justify-center items-center">
-          <ActivityIndicator />
+        <View className="flex-1 items-center justify-center">
+          <ActivityIndicator color="#059669" size="large" />
+          <Text className="text-sm text-stone-400 mt-3">Loading messages…</Text>
         </View>
       ) : (
         <FlatList
           ref={listRef}
-          contentContainerStyle={{ paddingBottom: 80 }}
           data={messages}
-          keyExtractor={(item) => (item?.id ? String(item.id) : String(item.timestamp))}
-          renderItem={({ item }) => {
+          keyExtractor={(item) =>
+            item?.id ? String(item.id) : String(item.timestamp)
+          }
+          contentContainerStyle={{
+            paddingTop: 16,
+            paddingHorizontal: 14,
+            paddingBottom: 100,
+          }}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() =>
+            listRef.current?.scrollToEnd({ animated: false })
+          }
+          ListEmptyComponent={
+            <View className="items-center justify-center pt-20">
+              <Text className="text-sm text-stone-400">
+                No messages yet. Say hello! 👋
+              </Text>
+            </View>
+          }
+          renderItem={({ item, index }) => {
             const isMine = item.senderId === myUserId;
+            const prevItem = index > 0 ? messages[index - 1] : null;
+            const showSender =
+              !isMine &&
+              item.senderName &&
+              item.senderName !== prevItem?.senderName;
 
             return (
               <View
-                className={`m-2 p-3 rounded-xl max-w-[75%] ${
-                  isMine ? "self-end bg-green-600" : "self-start bg-white"
+                className={`flex-row items-end mb-1 ${
+                  isMine ? "justify-end" : "justify-start"
                 }`}
               >
-                <Text className={isMine ? "text-white" : "text-black"}>
-                  {item.message}
-                </Text>
+                {/* Avatar slot */}
+                {!isMine && (
+                  <View className="mr-1.5 mb-0.5">
+                    {showSender || !prevItem ? (
+                      <Avatar name={item.senderName ?? otherName} size={28} />
+                    ) : (
+                      <View className="w-7" />
+                    )}
+                  </View>
+                )}
+
+                <View
+                  className={`max-w-[72%] ${
+                    isMine ? "items-end" : "items-start"
+                  }`}
+                >
+                  {showSender && (
+                    <Text className="text-[11px] font-semibold text-stone-400 mb-1 ml-1">
+                      {item.senderName}
+                    </Text>
+                  )}
+                  <View
+                    className={`px-4 py-2.5 ${
+                      isMine
+                        ? "bg-emerald-700 rounded-[18px] rounded-br-[5px]"
+                        : "bg-white border border-stone-100 rounded-[18px] rounded-bl-[5px]"
+                    }`}
+                  >
+                    <Text
+                      className={`text-sm leading-5 ${
+                        isMine ? "text-white" : "text-stone-800"
+                      }`}
+                    >
+                      {item.message}
+                    </Text>
+                  </View>
+                  {item.timestamp && (
+                    <Text className="text-[10px] text-stone-300 mt-1 mx-1">
+                      {new Date(item.timestamp).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Text>
+                  )}
+                </View>
               </View>
             );
           }}
         />
       )}
 
-      {/* INPUT */}
-      <View className="absolute bottom-0 w-full flex-row p-3 bg-white border-t">
+      {/* Input bar */}
+      <View
+        className="absolute bottom-0 left-0 right-0 flex-row items-end gap-2.5 px-4 pt-3 bg-white border-t border-stone-100"
+        style={{ paddingBottom: Platform.OS === "ios" ? 32 : 14 }}
+      >
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder="Type message"
-          className="flex-1 bg-gray-100 px-4 py-2 rounded-full"
+          placeholder="Type a message…"
+          placeholderTextColor="#b8b8b0"
+          className="flex-1 bg-stone-100 rounded-full px-4 py-2.5 text-sm text-stone-900"
+          style={{ maxHeight: 110, lineHeight: 20 }}
+          multiline
+          returnKeyType="default"
+          onSubmitEditing={sendMessage}
         />
-        <TouchableOpacity
-          onPress={sendMessage}
-          disabled={sending}
-          className="ml-2 bg-green-600 w-10 h-10 rounded-full items-center justify-center"
-          activeOpacity={0.8}
-        >
-          <FontAwesome name="send" size={16} color="white" />
-        </TouchableOpacity>
+        <Animated.View style={{ transform: [{ scale: sendScale }] }}>
+          <TouchableOpacity
+            onPress={sendMessage}
+            disabled={sending || !text.trim()}
+            className={`w-11 h-11 rounded-full items-center justify-center ${
+              !text.trim() || sending ? "bg-stone-300" : "bg-emerald-700"
+            }`}
+            activeOpacity={0.8}
+          >
+            {sending ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <FontAwesome name="send" size={14} color="#fff" />
+            )}
+          </TouchableOpacity>
+        </Animated.View>
       </View>
     </KeyboardAvoidingView>
   );

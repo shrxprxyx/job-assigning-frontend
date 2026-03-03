@@ -13,7 +13,11 @@ export default function Index() {
       router.replace("/auth/SignUp" as any);
       return;
     }
-
+    useEffect(() => {
+      router.replace("/auth/user-details" as any);  // force it for testing
+      return;
+    }, []);
+    
     // User exists but profile incomplete
     if (!user.isProfileComplete) {
       router.replace("/auth/user-details" as any);
